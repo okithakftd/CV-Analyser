@@ -1,12 +1,7 @@
 """Integration tests for the FastAPI application."""
-import os
-
-import pytest
 from fastapi.testclient import TestClient
 
-os.environ.setdefault("SKILLS_TAXONOMY_PATH", "skills_taxonomy.json")
-
-from api_main import app  # noqa: E402 — env must be set before import
+from api_main import app
 
 client = TestClient(app)
 

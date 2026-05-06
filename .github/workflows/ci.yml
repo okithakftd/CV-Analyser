@@ -8,7 +8,7 @@ on:
 
 jobs:
   # -------------------------------------------------------------------------
-  # Backend: lint, type-check, test, coverage
+  # Backend: test with coverage
   # -------------------------------------------------------------------------
   test-backend:
     name: Backend Tests (Python)
@@ -21,19 +21,20 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+          cache-dependency-path: backend/requirements*.txt
 
       - name: Install runtime dependencies
-        run: pip install fastapi uvicorn pydantic gunicorn
+        run: pip install -r backend/requirements.txt
 
       - name: Install dev dependencies
-        run: pip install -r requirements-dev.txt
+        run: pip install -r backend/requirements-dev.txt
 
       - name: Run tests with coverage
         run: |
           mkdir -p coverage-python
-          pytest tests/ \
-            --cov=skill_matcher \
+          pytest \
             --cov=api_main \
+            --cov=skill_matcher \
             --cov-report=xml:coverage-python/coverage.xml \
             --cov-report=term-missing
 
@@ -44,7 +45,7 @@ jobs:
           path: coverage-python/
 
   # -------------------------------------------------------------------------
-  # Frontend: lint, type-check, test, build
+  # Frontend: typecheck, lint, test with coverage, build
   # -------------------------------------------------------------------------
   test-frontend:
     name: Frontend Tests (Node)
@@ -77,7 +78,7 @@ jobs:
           path: coverage/
 
   # -------------------------------------------------------------------------
-  # SonarQube analysis (runs after both test jobs succeed)
+  # SonarQube analysis (after both test jobs pass)
   # -------------------------------------------------------------------------
   sonarqube:
     name: SonarQube Scan
@@ -87,7 +88,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # required for blame/history analysis
+          fetch-depth: 0
 
       - name: Download Python coverage
         uses: actions/download-artifact@v4
@@ -108,7 +109,7 @@ jobs:
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
   # -------------------------------------------------------------------------
-  # Build: verify production artifacts can be built
+  # Build: verify Docker image can be built
   # -------------------------------------------------------------------------
   build:
     name: Build

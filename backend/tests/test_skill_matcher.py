@@ -131,7 +131,6 @@ class TestExtractSkills:
         assert "python" in found
 
     def test_ignores_skills_not_in_role(self, matcher: SkillMatcher):
-        # aws_ec2 is cloud_devops only
         found = matcher.extract_skills("We run on EC2 with aws ec2 all day", "backend")
         assert "aws_ec2" not in found
 
@@ -186,7 +185,6 @@ class TestImportanceScore:
         assert score > 0.25
 
     def test_core_skill_gets_level_boost(self, matcher: SkillMatcher):
-        # python is "core"; aws_ec2 is "supplementary" — same occurrence count, different base
         core_score = matcher.importance_score("python needed", "python")
         supp_score = matcher.importance_score("ec2 needed", "aws_ec2")
         assert core_score >= supp_score

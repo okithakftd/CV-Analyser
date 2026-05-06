@@ -122,9 +122,13 @@ comet-ml/
 .secrets/
 secrets/
 
-# Node (often present in tooling/visualizations)
+# Node
 node_modules/
 npm-debug.log*
+
+# Coverage reports
+coverage/
+coverage-python/
 
 # Temp files
 *.tmp

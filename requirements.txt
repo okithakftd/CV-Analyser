@@ -1,7 +1,0 @@
-fastapi
-uvicorn
-pydantic
-sentence-transformers
-torch
-scikit-learn
-gunicorn

@@ -26,7 +26,9 @@ CORS_ALLOWED_ORIGINS = _parse_cors(
 )
 CORS_ALLOWED_ORIGIN_REGEX = os.getenv("CORS_ALLOWED_ORIGIN_REGEX")
 
-TAXONOMY_PATH = os.getenv("SKILLS_TAXONOMY_PATH", "skills_taxonomy.json")
+# Resolve taxonomy relative to this file so it works from any working directory
+_HERE = Path(__file__).parent
+TAXONOMY_PATH = os.getenv("SKILLS_TAXONOMY_PATH", str(_HERE / "skills_taxonomy.json"))
 _taxonomy = json.loads(Path(TAXONOMY_PATH).read_text(encoding="utf-8"))
 matcher = SkillMatcher(_taxonomy["skills"])
 

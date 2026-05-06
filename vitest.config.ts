@@ -13,7 +13,7 @@ export default defineConfig({
       include: ["src/**/*.{ts,tsx}"],
       exclude: [
         "src/__tests__/**",
-        "src/main.jsx",
+        "src/main.tsx",
         "src/vite-env.d.ts",
         "src/lib/supabaseClient.ts",
       ],

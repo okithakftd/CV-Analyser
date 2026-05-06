@@ -7,19 +7,16 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-# System deps (kept minimal; add more if your libs need them)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt ./
+COPY backend/requirements.txt ./
 RUN pip install -r requirements.txt
 
-COPY . .
+COPY backend/ ./
 
-# Cloud Run/Render provide $PORT at runtime
 ENV PORT=8000
 EXPOSE 8000
 
-CMD ["uvicorn", "api_main:app", "--host", "0.0.0.0", "--port", "${PORT}"]
-
+CMD ["sh", "-c", "uvicorn api_main:app --host 0.0.0.0 --port ${PORT:-8000}"]
