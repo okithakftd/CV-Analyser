@@ -133,3 +133,5 @@ npm-debug.log*
 *.old
 *.orig
 *.rej
+
+*.claude

@@ -1,27 +1,13 @@
 import React, { useMemo, useRef, useState } from "react";
-// Use Vite worker plugin for PDF.js worker
-// @ts-ignore - Vite returns a Worker constructor for ?worker imports
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+// @ts-ignore - Vite resolves ?worker suffix at build time, not visible to tsc
 import PDFWorker from "pdfjs-dist/build/pdf.worker.mjs?worker";
 import { useAuth } from "./auth/AuthProvider";
+import { groupByPriority } from "./utils/skillUtils";
+import type { AnalyzeResponse, SkillOut } from "./utils/skillUtils";
 import "./index.css";
 
-type SkillOut = {
-  skill_id: string;
-  skill: string;
-  category: string;
-  found_as?: string[];
-  confidence?: number;
-  importance?: number;
-  priority?: "High" | "Medium" | "Low";
-  reason?: string;
-  suggested_path?: string[];
-};
-
-type AnalyzeResponse = {
-  matched: SkillOut[];
-  missing: SkillOut[];
-  summary: { target_role: string; matched_count: number; missing_count: number };
-};
+const API_URL = import.meta.env.VITE_ML_API_URL as string;
 
 const PriorityBadge: React.FC<{ p: "High" | "Medium" | "Low" }> = ({ p }) => {
   const cls =
@@ -30,8 +16,14 @@ const PriorityBadge: React.FC<{ p: "High" | "Medium" | "Low" }> = ({ p }) => {
       : p === "Medium"
       ? "bg-amber-100 text-amber-800"
       : "bg-emerald-100 text-emerald-800";
-  return <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>{p}</span>;
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${cls}`}>
+      {p}
+    </span>
+  );
 };
+
+export { PriorityBadge };
 
 export default function SkillGapPage() {
   const { session } = useAuth();
@@ -43,20 +35,18 @@ export default function SkillGapPage() {
   const [err, setErr] = useState<string | null>(null);
   const [pdfStatus, setPdfStatus] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  let pdfWorkerInstance: Worker | null = null;
+  // Persist across renders; lazily created so it's not re-instantiated on each render
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfWorkerRef = useRef<any>(null);
 
-  const missingByPriority = useMemo(() => {
-    const out = { High: [] as SkillOut[], Medium: [] as SkillOut[], Low: [] as SkillOut[] };
-    (data?.missing ?? []).forEach((s) => out[(s.priority ?? "Low") as "High" | "Medium" | "Low"].push(s));
-    return out;
-  }, [data]);
+  const missingByPriority = useMemo(() => groupByPriority(data?.missing ?? []), [data]);
 
   async function runAnalyze() {
     setLoading(true);
     setErr(null);
     setData(null);
     try {
-      const res = await fetch((import.meta as any).env.VITE_ML_API_URL + "/analyze", {
+      const res = await fetch(`${API_URL}/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -64,42 +54,37 @@ export default function SkillGapPage() {
         },
         body: JSON.stringify({ resume_text: resumeText, job_text: jobText, target_role: targetRole }),
       });
-      if (!res.ok) throw new Error(`API error: ${res.status}`);
-      const json = (await res.json()) as AnalyzeResponse;
-      setData(json);
-    } catch (e: any) {
-      setErr(e?.message ?? "Unknown error");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body?.detail ?? `API error: ${res.status}`);
+      }
+      setData((await res.json()) as AnalyzeResponse);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Unknown error");
     } finally {
       setLoading(false);
     }
   }
 
   async function extractPdfText(file: File): Promise<string> {
-    // Lazy import pdfjs to keep initial bundle small
-    const pdfjsLib: any = await import("pdfjs-dist");
-    // Provide a proper Worker instance via Vite's ?worker import
-    if (!pdfWorkerInstance) {
-      // @ts-ignore - constructor provided by Vite worker plugin
-      pdfWorkerInstance = new PDFWorker();
+    const pdfjsLib = await import("pdfjs-dist");
+    if (!pdfWorkerRef.current) {
+      pdfWorkerRef.current = new PDFWorker();
     }
-    pdfjsLib.GlobalWorkerOptions.workerPort = pdfWorkerInstance;
+    pdfjsLib.GlobalWorkerOptions.workerPort = pdfWorkerRef.current;
 
     const arrayBuffer = await file.arrayBuffer();
-    const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-    const pdf = await loadingTask.promise;
-    let out: string[] = [];
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pages: string[] = [];
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      // @ts-ignore - runtime object has items
       const textContent = await page.getTextContent();
-      // Concatenate strings with spaces to preserve word boundaries
-      const pageText = (textContent.items || [])
-        .map((it: any) => (typeof it?.str === "string" ? it.str : ""))
+      const pageText = (textContent.items as Array<{ str?: string }>)
+        .map((it) => it.str ?? "")
         .join(" ");
-      out.push(pageText);
+      pages.push(pageText);
     }
-    // Normalize whitespace a bit
-    return out.join("\n\n").replace(/\s+/g, " ").trim();
+    return pages.join("\n\n").replace(/\s+/g, " ").trim();
   }
 
   async function onPdfSelected(file?: File | null) {
@@ -112,22 +97,24 @@ export default function SkillGapPage() {
     try {
       const text = await extractPdfText(file);
       if (!text || text.length < 5) {
-        setPdfStatus("Couldn’t extract text from this PDF");
+        setPdfStatus("Couldn't extract text from this PDF");
         return;
       }
-      // Append or replace? Replace to keep it clean.
       setResumeText(text);
       setPdfStatus(`Loaded: ${file.name}`);
-    } catch (e: any) {
-      setPdfStatus(e?.message || "Failed to read PDF");
+    } catch (e: unknown) {
+      setPdfStatus(e instanceof Error ? e.message : "Failed to read PDF");
     }
   }
+
+  const isExtracting = pdfStatus?.toLowerCase().includes("extracting") ?? false;
+  const canAnalyze = !loading && !isExtracting && resumeText.trim().length >= 30 && jobText.trim().length >= 30;
 
   return (
     <div className="mx-auto max-w-6xl p-6">
       <h1 className="text-2xl font-bold">Skill Gap Analyzer</h1>
       <p className="mt-1 text-sm text-gray-600">
-        Paste your resume + a job description → get matched skills, missing skills, and a learning roadmap.
+        Paste your resume + a job description &rarr; get matched skills, missing skills, and a learning roadmap.
       </p>
 
       <div className="mt-6 grid gap-4 md:grid-cols-3">
@@ -136,7 +123,7 @@ export default function SkillGapPage() {
           <select
             className="mt-2 w-full rounded-xl border px-3 py-2"
             value={targetRole}
-            onChange={(e) => setTargetRole(e.target.value as any)}
+            onChange={(e) => setTargetRole(e.target.value as "backend" | "fullstack" | "cloud_devops")}
           >
             <option value="backend">Backend Engineer</option>
             <option value="fullstack">Fullstack Engineer</option>
@@ -145,12 +132,7 @@ export default function SkillGapPage() {
 
           <button
             onClick={runAnalyze}
-            disabled={
-              loading ||
-              (pdfStatus !== null && pdfStatus.toLowerCase().includes("extracting")) ||
-              resumeText.trim().length < 30 ||
-              jobText.trim().length < 30
-            }
+            disabled={!canAnalyze}
             className="mt-4 w-full rounded-xl bg-black px-4 py-2 text-white disabled:opacity-40"
           >
             {loading ? "Analyzing..." : "Analyze"}
@@ -226,7 +208,7 @@ export default function SkillGapPage() {
                   {missingByPriority[p].length === 0 ? (
                     <p className="text-sm text-gray-500">None</p>
                   ) : (
-                    missingByPriority[p].map((s) => (
+                    missingByPriority[p].map((s: SkillOut) => (
                       <div key={s.skill_id} className="rounded-xl bg-gray-50 p-3">
                         <div className="flex items-start justify-between gap-2">
                           <div>
@@ -256,7 +238,7 @@ export default function SkillGapPage() {
               {data.matched.length === 0 ? (
                 <p className="text-sm text-gray-500">No matches found yet — try adding more detail to your resume.</p>
               ) : (
-                data.matched.map((s) => (
+                data.matched.map((s: SkillOut) => (
                   <div key={s.skill_id} className="rounded-xl bg-gray-50 p-3">
                     <div className="font-semibold">{s.skill}</div>
                     <div className="text-xs text-gray-600">{s.category}</div>
