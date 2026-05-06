@@ -9,7 +9,8 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
-from skill_matcher import SkillMatcher
+from semantic_matcher import SemanticSkillMatcher
+from importance_scorer import score_importance
 
 
 def _parse_cors(origins_str: str) -> List[str]:
@@ -30,7 +31,7 @@ CORS_ALLOWED_ORIGIN_REGEX = os.getenv("CORS_ALLOWED_ORIGIN_REGEX")
 _HERE = Path(__file__).parent
 TAXONOMY_PATH = os.getenv("SKILLS_TAXONOMY_PATH", str(_HERE / "skills_taxonomy.json"))
 _taxonomy = json.loads(Path(TAXONOMY_PATH).read_text(encoding="utf-8"))
-matcher = SkillMatcher(_taxonomy["skills"])
+matcher = SemanticSkillMatcher(_taxonomy["skills"])
 
 
 class AnalyzeRequest(BaseModel):
@@ -95,6 +96,7 @@ def root() -> dict:
 def analyze(req: AnalyzeRequest) -> AnalyzeResponse:
     try:
         result = matcher.analyze(req.resume_text, req.job_text, req.target_role)
+        result["missing"] = score_importance(req.job_text, result["missing"])
         return AnalyzeResponse(**result)
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Analysis failed. Please try again.") from exc

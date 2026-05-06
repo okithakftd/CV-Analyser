@@ -2,3 +2,6 @@ fastapi
 uvicorn[standard]
 pydantic
 gunicorn
+openai
+sentence-transformers
+torch
