@@ -28,7 +28,7 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173
 ```bash
 cd backend
 pip install -r requirements.txt
-uvicorn api_main:app --reload --port 8000
+python -m uvicorn api_main:app --reload --port 8000
 ```
 
 API runs at `http://localhost:8000` · Docs at `http://localhost:8000/docs`
@@ -60,3 +60,5 @@ App runs at `http://localhost:5173`
 | `npm run test` | Run frontend tests |
 | `npm run typecheck` | TypeScript type check |
 | `pytest` (in `backend/`) | Run backend tests |
+
+nvidia keys couldnt get yet.....

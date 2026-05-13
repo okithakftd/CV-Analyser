@@ -9,6 +9,9 @@ import "./index.css";
 
 const API_URL = import.meta.env.VITE_ML_API_URL as string;
 
+const MATCHED_PAGE_SIZE = 8;
+const MISSING_PAGE_SIZE = 5;
+
 const PriorityBadge: React.FC<{ p: "High" | "Medium" | "Low" }> = ({ p }) => {
   const cls =
     p === "High"
@@ -34,6 +37,12 @@ export default function SkillGapPage() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [pdfStatus, setPdfStatus] = useState<string | null>(null);
+  const [matchedPage, setMatchedPage] = useState(0);
+  const [missingVisible, setMissingVisible] = useState<Record<"High" | "Medium" | "Low", number>>({
+    High: MISSING_PAGE_SIZE,
+    Medium: MISSING_PAGE_SIZE,
+    Low: MISSING_PAGE_SIZE,
+  });
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // Persist across renders; lazily created so it's not re-instantiated on each render
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -45,6 +54,8 @@ export default function SkillGapPage() {
     setLoading(true);
     setErr(null);
     setData(null);
+    setMatchedPage(0);
+    setMissingVisible({ High: MISSING_PAGE_SIZE, Medium: MISSING_PAGE_SIZE, Low: MISSING_PAGE_SIZE });
     try {
       const res = await fetch(`${API_URL}/analyze`, {
         method: "POST",
@@ -208,24 +219,34 @@ export default function SkillGapPage() {
                   {missingByPriority[p].length === 0 ? (
                     <p className="text-sm text-gray-500">None</p>
                   ) : (
-                    missingByPriority[p].map((s: SkillOut) => (
-                      <div key={s.skill_id} className="rounded-xl bg-gray-50 p-3">
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <div className="font-semibold">{s.skill}</div>
-                            <div className="text-xs text-gray-600">{s.category}</div>
+                    <>
+                      {missingByPriority[p].slice(0, missingVisible[p]).map((s: SkillOut) => (
+                        <div key={s.skill_id} className="rounded-xl bg-gray-50 p-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="font-semibold">{s.skill}</div>
+                              <div className="text-xs text-gray-600">{s.category}</div>
+                            </div>
+                            <div className="text-xs text-gray-600">importance {s.importance?.toFixed(2)}</div>
                           </div>
-                          <div className="text-xs text-gray-600">importance {s.importance?.toFixed(2)}</div>
+                          {s.suggested_path?.length ? (
+                            <ol className="mt-2 list-decimal pl-5 text-sm text-gray-700">
+                              {s.suggested_path.map((step) => (
+                                <li key={step}>{step}</li>
+                              ))}
+                            </ol>
+                          ) : null}
                         </div>
-                        {s.suggested_path?.length ? (
-                          <ol className="mt-2 list-decimal pl-5 text-sm text-gray-700">
-                            {s.suggested_path.map((step) => (
-                              <li key={step}>{step}</li>
-                            ))}
-                          </ol>
-                        ) : null}
-                      </div>
-                    ))
+                      ))}
+                      {missingByPriority[p].length > missingVisible[p] && (
+                        <button
+                          onClick={() => setMissingVisible((prev) => ({ ...prev, [p]: prev[p] + MISSING_PAGE_SIZE }))}
+                          className="mt-1 text-sm text-blue-600 hover:underline"
+                        >
+                          Show {Math.min(MISSING_PAGE_SIZE, missingByPriority[p].length - missingVisible[p])} more
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -238,7 +259,7 @@ export default function SkillGapPage() {
               {data.matched.length === 0 ? (
                 <p className="text-sm text-gray-500">No matches found yet — try adding more detail to your resume.</p>
               ) : (
-                data.matched.map((s: SkillOut) => (
+                data.matched.slice(matchedPage * MATCHED_PAGE_SIZE, (matchedPage + 1) * MATCHED_PAGE_SIZE).map((s: SkillOut) => (
                   <div key={s.skill_id} className="rounded-xl bg-gray-50 p-3">
                     <div className="font-semibold">{s.skill}</div>
                     <div className="text-xs text-gray-600">{s.category}</div>
@@ -254,6 +275,27 @@ export default function SkillGapPage() {
                 ))
               )}
             </div>
+            {data.matched.length > MATCHED_PAGE_SIZE && (
+              <div className="mt-4 flex items-center justify-between text-sm">
+                <button
+                  onClick={() => setMatchedPage((p) => p - 1)}
+                  disabled={matchedPage === 0}
+                  className="rounded-lg border px-3 py-1 disabled:opacity-40 hover:bg-gray-50"
+                >
+                  Previous
+                </button>
+                <span className="text-gray-500">
+                  {matchedPage + 1} / {Math.ceil(data.matched.length / MATCHED_PAGE_SIZE)}
+                </span>
+                <button
+                  onClick={() => setMatchedPage((p) => p + 1)}
+                  disabled={(matchedPage + 1) * MATCHED_PAGE_SIZE >= data.matched.length}
+                  className="rounded-lg border px-3 py-1 disabled:opacity-40 hover:bg-gray-50"
+                >
+                  Next
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

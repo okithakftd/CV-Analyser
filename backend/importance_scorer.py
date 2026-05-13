@@ -12,6 +12,8 @@ logger = logging.getLogger(__name__)
 
 _client: OpenAI | None = None
 
+NVIDIA_MODEL = os.getenv("NVIDIA_MODEL", "meta/llama-3.1-70b-instruct")
+
 
 def _get_client() -> OpenAI:
     global _client
@@ -51,7 +53,7 @@ def score_importance(job_text: str, missing_skills: list[dict[str, Any]]) -> lis
     try:
         client = _get_client()
         response = client.chat.completions.create(
-            model="nvidia/llama-3.1-nemotron-70b-instruct",
+            model=NVIDIA_MODEL,
             messages=[
                 {"role": "system", "content": _SYSTEM},
                 {"role": "user", "content": _PROMPT.format(

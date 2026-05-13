@@ -5,3 +5,4 @@ gunicorn
 openai
 sentence-transformers
 torch
+python-dotenv
