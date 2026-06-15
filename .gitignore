@@ -139,3 +139,4 @@ coverage-python/
 *.rej
 
 *.claude
+*.supabase_schema.sql
