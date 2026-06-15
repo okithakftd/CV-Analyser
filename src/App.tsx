@@ -16,7 +16,6 @@ const TopBar: React.FC = () => {
   const { session } = useAuth()
 
   async function signOut() {
-    await fetch('/logout', { method: 'POST' }).catch(() => {}) // optional: ignore if not used
     await import('./lib/supabaseClient').then(({ supabase }) => supabase.auth.signOut())
   }
 
