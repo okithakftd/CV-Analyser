@@ -7,6 +7,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/__tests__/setup.ts"],
+    env: {
+      VITE_SUPABASE_URL: "http://localhost:54321",
+      VITE_SUPABASE_ANON_KEY: "fake-anon-key-for-testing",
+    },
     coverage: {
       provider: "v8",
       reporter: ["text", "lcov"],

@@ -61,4 +61,4 @@ App runs at `http://localhost:5173`
 | `npm run typecheck` | TypeScript type check |
 | `pytest` (in `backend/`) | Run backend tests |
 
-nvidia keys couldnt get yet.....
+
